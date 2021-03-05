@@ -67,8 +67,8 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Container(
         padding: EdgeInsets.all(16),
         child: Column(children: [
-          ElevatedButton(
-            child: const Text("Request"),
+          RaisedButton(
+            child: Text("Request"),
             onPressed: () {
               dio
                   .get<String>(
@@ -76,13 +76,13 @@ class _MyHomePageState extends State<MyHomePage> {
                   .then((r) {
                 setState(() {
                   print(r.data);
-                  _text = r.data!.replaceAll(RegExp(r"\s"), "");
+                  _text = r.data.replaceAll(RegExp(r"\s"), "");
                 });
               }).catchError(print);
             },
           ),
-          ElevatedButton(
-            child: const Text("Open new page5"),
+          RaisedButton(
+            child: Text("Open new page5"),
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) {
                 return RequestRoute();

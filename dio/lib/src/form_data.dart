@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-
-import 'options.dart';
 import 'multipart_file.dart';
 import 'utils.dart';
 
@@ -12,11 +10,11 @@ class FormData {
   static const String _BOUNDARY_PRE_TAG = '--dio-boundary-';
   static const _BOUNDARY_LENGTH = _BOUNDARY_PRE_TAG.length + 10;
 
-  late String _boundary;
-
   /// The boundary of FormData, it consists of a constant prefix and a random
   /// postfix to assure the the boundary unpredictable and unique, each FormData
-  /// instance will be different.
+  /// instance will be different. And you can custom it by yourself.
+  String _boundary;
+
   String get boundary => _boundary;
 
   final _newlineRegExp = RegExp(r'\r\n|\r|\n');
@@ -36,8 +34,7 @@ class FormData {
   }
 
   /// Create FormData instance with a Map.
-  FormData.fromMap(Map<String, dynamic> map,
-      [CollectionFormat collectionFormat = CollectionFormat.multiCompatible]) {
+  FormData.fromMap(Map<String, dynamic> map) {
     _init();
     encodeMap(
       map,
@@ -50,7 +47,6 @@ class FormData {
         }
         return null;
       },
-      collectionFormat: collectionFormat,
       encode: false,
     );
   }
@@ -90,15 +86,12 @@ class FormData {
   }
 
   /// Encode [value] in the same way browsers do.
-  String? _browserEncode(String? value) {
+  String _browserEncode(String value) {
     // http://tools.ietf.org/html/rfc2388 mandates some complex encodings for
     // field names and file names, but in practice user agents seem not to
     // follow this at all. Instead, they URL-encode `\r`, `\n`, and `\r\n` as
     // `\r\n`; URL-encode `"`; and do nothing else (even for `%` or non-ASCII
     // characters). We follow their behavior.
-    if (value == null) {
-      return null;
-    }
     return value.replaceAll(_newlineRegExp, '%0D%0A').replaceAll('"', '%22');
   }
 
@@ -147,7 +140,7 @@ class FormData {
       writeLine();
     });
 
-    Future.forEach<MapEntry<String, MultipartFile>>(files, (file) {
+    Future.forEach(files, (file) {
       writeAscii('--$boundary\r\n');
       writeAscii(_headerForFile(file));
       return writeStreamToSink(file.value.finalize(), controller)
@@ -161,6 +154,6 @@ class FormData {
 
   ///Transform the entire FormData contents as a list of bytes asynchronously.
   Future<List<int>> readAsBytes() {
-    return Future(() => finalize().reduce((a, b) => [...a, ...b]));
+    return finalize().reduce((a, b) => [...a, ...b]);
   }
 }

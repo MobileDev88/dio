@@ -9,8 +9,7 @@ main() async {
   String csrfToken;
   dio.options.baseUrl = "http://www.dtworkroom.com/doris/1/2.0.0/";
   tokenDio.options = dio.options;
-  dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (RequestOptions options) {
+  dio.interceptors.add(InterceptorsWrapper(onRequest: (RequestOptions options) {
     print('send request：path:${options.path}，baseURL:${options.baseUrl}');
     if (csrfToken == null) {
       print("no token，request token firstly...");
@@ -36,7 +35,7 @@ main() async {
       if (csrfToken != options.headers["csrfToken"]) {
         options.headers["csrfToken"] = csrfToken;
         //repeat
-        return dio.fetch(options);
+        return dio.request(options.path, options: options);
       }
       // update token and repeat
       // Lock to block the incoming request until the token updated
@@ -52,7 +51,7 @@ main() async {
         dio.interceptors.errorLock.unlock();
       }).then((e) {
         //repeat
-        return dio.fetch(options);
+        return dio.request(options.path, options: options);
       });
     }
     return error;

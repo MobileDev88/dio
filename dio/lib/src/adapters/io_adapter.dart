@@ -15,17 +15,17 @@ class DefaultHttpClientAdapter implements HttpClientAdapter {
   /// [Dio] will create HttpClient when it is needed.
   /// If [onHttpClientCreate] is provided, [Dio] will call
   /// it when a HttpClient created.
-  OnHttpClientCreate? onHttpClientCreate;
+  OnHttpClientCreate onHttpClientCreate;
 
-  HttpClient? _defaultHttpClient;
+  HttpClient _defaultHttpClient;
 
   bool _closed = false;
 
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
-    Stream<List<int>>? requestStream,
-    Future? cancelFuture,
+    Stream<List<int>> requestStream,
+    Future cancelFuture,
   ) async {
     if (_closed) {
       throw Exception(
@@ -42,23 +42,18 @@ class DefaultHttpClientAdapter implements HttpClientAdapter {
       );
     }
 
-    late HttpClientRequest request;
+    HttpClientRequest request;
     try {
-      if (options.connectTimeout > 0) {
-        request = await requestFuture
-            .timeout(Duration(milliseconds: options.connectTimeout));
-      } else {
-        request = await requestFuture;
-      }
-
+      request = await requestFuture;
       //Set Headers
       options.headers.forEach((k, v) => request.headers.set(k, v));
     } on SocketException catch (e) {
       if (e.message.contains('timed out')) _throwConnectingTimeout();
       rethrow;
-    } on TimeoutException {
-      _throwConnectingTimeout();
     }
+
+    request.followRedirects = options.followRedirects;
+    request.maxRedirects = options.maxRedirects;
 
     if (options.method != 'GET' && requestStream != null) {
       // Transform the request data
@@ -68,7 +63,7 @@ class DefaultHttpClientAdapter implements HttpClientAdapter {
     if (options.connectTimeout > 0) {
       future = future.timeout(Duration(milliseconds: options.connectTimeout));
     }
-    late HttpClientResponse responseStream;
+    HttpClientResponse responseStream;
     try {
       responseStream = await future;
     } on TimeoutException {
@@ -91,8 +86,7 @@ class DefaultHttpClientAdapter implements HttpClientAdapter {
       stream,
       responseStream.statusCode,
       headers: headers,
-      isRedirect:
-          responseStream.isRedirect || responseStream.redirects.isNotEmpty,
+      isRedirect: responseStream.isRedirect,
       redirects: responseStream.redirects
           .map((e) => RedirectRecord(e.statusCode, e.method, e.location))
           .toList(),
@@ -100,18 +94,15 @@ class DefaultHttpClientAdapter implements HttpClientAdapter {
     );
   }
 
-  HttpClient _configHttpClient(Future? cancelFuture, int? connectionTimeout) {
-    var _connectionTimeout =
-        (connectionTimeout != null && connectionTimeout > 0)
-            ? Duration(milliseconds: connectionTimeout)
-            : null;
-
+  HttpClient _configHttpClient(Future cancelFuture, int connectionTimeout) {
+    var _connectionTimeout = connectionTimeout > 0
+        ? Duration(milliseconds: connectionTimeout)
+        : null;
     if (cancelFuture != null) {
       var _httpClient = HttpClient();
-      _httpClient.userAgent = null;
       if (onHttpClientCreate != null) {
         //user can return a HttpClient instance
-        _httpClient = onHttpClientCreate!(_httpClient) ?? _httpClient;
+        _httpClient = onHttpClientCreate(_httpClient) ?? _httpClient;
       }
       _httpClient.idleTimeout = Duration(seconds: 0);
       cancelFuture.whenComplete(() {
@@ -124,18 +115,17 @@ class DefaultHttpClientAdapter implements HttpClientAdapter {
         });
       });
       return _httpClient..connectionTimeout = _connectionTimeout;
-    }
-    if (_defaultHttpClient == null) {
+    } else if (_defaultHttpClient == null) {
       _defaultHttpClient = HttpClient();
-      _defaultHttpClient!.idleTimeout = Duration(seconds: 3);
+      _defaultHttpClient.idleTimeout = Duration(seconds: 3);
       if (onHttpClientCreate != null) {
         //user can return a HttpClient instance
         _defaultHttpClient =
-            onHttpClientCreate!(_defaultHttpClient!) ?? _defaultHttpClient;
+            onHttpClientCreate(_defaultHttpClient) ?? _defaultHttpClient;
       }
-      _defaultHttpClient!.connectionTimeout = _connectionTimeout;
+      _defaultHttpClient.connectionTimeout = _connectionTimeout;
     }
-    return _defaultHttpClient!;
+    return _defaultHttpClient;
   }
 
   @override

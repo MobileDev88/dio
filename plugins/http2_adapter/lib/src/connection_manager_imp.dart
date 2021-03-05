@@ -6,7 +6,7 @@ class _ConnectionManager implements ConnectionManager {
   ///
   /// We can set trusted certificates and handler
   /// for unverifiable certificates.
-  final void Function(Uri uri, ClientSetting)? onClientCreate;
+  final void Function(Uri uri, ClientSetting) onClientCreate;
 
   /// Sets the idle timeout(milliseconds) of non-active persistent
   /// connections. For the sake of socket reuse feature with http/2,
@@ -14,16 +14,17 @@ class _ConnectionManager implements ConnectionManager {
   final int _idleTimeout;
 
   /// Saving the reusable connections
-  final _transportsMap = <String, _ClientTransportConnectionState>{};
+  final _transportsMap = Map<String, _ClientTransportConnectionState>();
 
   /// Saving the connecting futures
-  final _connectFutures = <String, Future<_ClientTransportConnectionState>>{};
+  final _connectFutures =
+      Map<String, Future<_ClientTransportConnectionState>>();
 
   bool _closed = false;
   bool _forceClosed = false;
 
-  _ConnectionManager({int? idleTimeout, this.onClientCreate})
-      : _idleTimeout = idleTimeout ?? 1000;
+  _ConnectionManager({int idleTimeout, this.onClientCreate})
+      : this._idleTimeout = idleTimeout ?? 1000;
 
   @override
   Future<ClientTransportConnection> getConnection(
@@ -32,8 +33,8 @@ class _ConnectionManager implements ConnectionManager {
       throw Exception(
           "Can't establish connection after [ConnectionManager] closed!");
     }
-    var uri = options.uri;
-    var domain = '${uri.host}:${uri.port}';
+    Uri uri = options.uri;
+    String domain = "${uri.host}:${uri.port}";
     var transportState = _transportsMap[domain];
     if (transportState == null) {
       var _initFuture = _connectFutures[domain];
@@ -59,11 +60,11 @@ class _ConnectionManager implements ConnectionManager {
 
   Future<_ClientTransportConnectionState> _connect(
       RequestOptions options) async {
-    var uri = options.uri;
-    var domain = '${uri.host}:${uri.port}';
-    var clientConfig = ClientSetting();
+    Uri uri = options.uri;
+    String domain = "${uri.host}:${uri.port}";
+    ClientSetting clientConfig = ClientSetting();
     if (onClientCreate != null) {
-      onClientCreate!(uri, clientConfig);
+      onClientCreate(uri, clientConfig);
     }
     var socket;
     try {
@@ -71,8 +72,8 @@ class _ConnectionManager implements ConnectionManager {
       socket = await SecureSocket.connect(
         uri.host,
         uri.port,
-        timeout: options.connectTimeout!=null&& options.connectTimeout! > 0
-            ? Duration(milliseconds: options.connectTimeout!)
+        timeout: options.connectTimeout > 0
+            ? Duration(milliseconds: options.connectTimeout)
             : null,
         context: clientConfig.context,
         onBadCertificate: clientConfig.onBadCertificate,
@@ -80,10 +81,10 @@ class _ConnectionManager implements ConnectionManager {
       );
     } on SocketException catch (e) {
       if (e.osError == null) {
-        if (e.message.contains('timed out')) {
+        if (e.message.contains("timed out")) {
           throw DioError(
             request: options,
-            error: 'Connecting timed out [${options.connectTimeout}ms]',
+            error: "Connecting timed out [${options.connectTimeout}ms]",
             type: DioErrorType.CONNECT_TIMEOUT,
           );
         }
@@ -113,7 +114,7 @@ class _ConnectionManager implements ConnectionManager {
 
   @override
   void removeConnection(ClientTransportConnection transport) {
-    _ClientTransportConnectionState? _transportState;
+    _ClientTransportConnectionState _transportState;
     _transportsMap.removeWhere((_, state) {
       if (state.transport == transport) {
         _transportState = state;
@@ -146,8 +147,8 @@ class _ClientTransportConnectionState {
   }
 
   bool isActive = true;
-  late int latestIdleTimeStamp;
-  Timer? _timer;
+  int latestIdleTimeStamp;
+  Timer _timer;
 
   void delayClose(int idleTimeout, void Function() callback) {
     idleTimeout = idleTimeout < 100 ? 100 : idleTimeout;
@@ -162,7 +163,7 @@ class _ClientTransportConnectionState {
   void _startTimer(void Function() callback, int duration, int idleTimeout) {
     _timer = Timer(Duration(milliseconds: duration), () {
       if (!isActive) {
-        var interval =
+        int interval =
             DateTime.now().millisecondsSinceEpoch - latestIdleTimeStamp;
         if (interval >= duration) {
           return callback();

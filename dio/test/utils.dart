@@ -6,18 +6,20 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:pedantic/pedantic.dart';
 import 'package:test/test.dart';
 
 /// The current server instance.
-HttpServer? _server;
+HttpServer _server;
 
 Encoding requiredEncodingForCharset(String charset) =>
     Encoding.getByName(charset) ??
-    (throw FormatException('Unsupported encoding "$charset".'));
+        (throw FormatException('Unsupported encoding "$charset".'));
 
 /// The URL for the current server instance.
-Uri get serverUrl => Uri.parse('http://localhost:${_server?.port}');
+Uri get serverUrl => Uri.parse('http://localhost:${_server.port}');
 
 /// Starts a new HTTP server.
 Future<void> startServer() async {
@@ -27,11 +29,9 @@ Future<void> startServer() async {
       var response = request.response;
 
       if (path == '/error') {
-        const content = 'error';
         response
           ..statusCode = 400
-          ..contentLength = content.length
-          ..write(content);
+          ..contentLength = 0;
         unawaited(response.close());
         return;
       }
@@ -66,7 +66,8 @@ Future<void> startServer() async {
       }
 
       if (path == '/list') {
-        response.headers.contentType = ContentType('application', 'json');
+        response.headers.contentType =
+            ContentType('application', 'json');
         response
           ..statusCode = 200
           ..contentLength = -1
@@ -75,17 +76,13 @@ Future<void> startServer() async {
         return;
       }
 
-      if (path == '/download') {
+      if (path == "/download") {
         const content = 'I am a text file';
-        response.headers.set('content-encoding', 'plain');
         response
           ..statusCode = 200
           ..contentLength = content.length
           ..write(content);
-
-        Future.delayed(Duration(milliseconds: 300), () {
-          response.close();
-        });
+        unawaited(response.close());
         return;
       }
 
@@ -104,7 +101,7 @@ Future<void> startServer() async {
         requestBody = null;
       } else if (request.headers.contentType?.charset != null) {
         var encoding =
-            requiredEncodingForCharset(request.headers.contentType!.charset!);
+            requiredEncodingForCharset(request.headers.contentType.charset);
         requestBody = encoding.decode(requestBodyBytes);
       } else {
         requestBody = requestBodyBytes;
@@ -136,7 +133,7 @@ Future<void> startServer() async {
 /// Stops the current HTTP server.
 void stopServer() {
   if (_server != null) {
-    _server!.close();
+    _server.close();
     _server = null;
   }
 }

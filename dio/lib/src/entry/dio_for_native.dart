@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import '../adapter.dart';
 import '../cancel_token.dart';
-import '../dio_mixin.dart';
 import '../response.dart';
 import '../dio.dart';
 import '../headers.dart';
@@ -10,12 +9,12 @@ import '../options.dart';
 import '../dio_error.dart';
 import '../adapters/io_adapter.dart';
 
-Dio createDio([BaseOptions? options]) => DioForNative(options);
+Dio createDio([BaseOptions options]) => DioForNative(options);
 
 class DioForNative with DioMixin implements Dio {
   /// Create Dio instance with default [Options].
   /// It's mostly just one Dio instance in your application.
-  DioForNative([BaseOptions? options]) {
+  DioForNative([BaseOptions options]) {
     this.options = options ?? BaseOptions();
     httpClientAdapter = DefaultHttpClientAdapter();
   }
@@ -61,17 +60,21 @@ class DioForNative with DioMixin implements Dio {
   Future<Response> download(
     String urlPath,
     savePath, {
-    ProgressCallback? onReceiveProgress,
-    Map<String, dynamic>? queryParameters,
-    CancelToken? cancelToken,
+    ProgressCallback onReceiveProgress,
+    Map<String, dynamic> queryParameters,
+    CancelToken cancelToken,
     bool deleteOnError = true,
     String lengthHeader = Headers.contentLengthHeader,
     data,
-    Options? options,
+    Options options,
   }) async {
     // We set the `responseType` to [ResponseType.STREAM] to retrieve the
     // response stream.
-    options ??= checkOptions('GET', options);
+    if (options != null) {
+      options.method = options.method ?? 'GET';
+    } else {
+      options = checkOptions('GET', options);
+    }
 
     // Receive data with stream.
     options.responseType = ResponseType.stream;
@@ -86,14 +89,14 @@ class DioForNative with DioMixin implements Dio {
       );
     } on DioError catch (e) {
       if (e.type == DioErrorType.RESPONSE) {
-        if (e.response!.request.receiveDataWhenStatusError == true) {
+        if (e.response.request.receiveDataWhenStatusError) {
           var res = await transformer.transformResponse(
-            e.response!.request..responseType = ResponseType.json,
-            e.response!.data,
+            e.response.request..responseType = ResponseType.json,
+            e.response.data,
           );
-          e.response!.data = res;
+          e.response.data = res;
         } else {
-          e.response!.data = null;
+          e.response.data = null;
         }
       }
       rethrow;
@@ -101,7 +104,7 @@ class DioForNative with DioMixin implements Dio {
       rethrow;
     }
 
-    response.headers = Headers.fromMap(response.data!.headers);
+    response.headers = Headers.fromMap(response.data.headers);
     File file;
     if (savePath is Function) {
       assert(savePath is String Function(Headers),
@@ -125,7 +128,7 @@ class DioForNative with DioMixin implements Dio {
     var received = 0;
 
     // Stream<Uint8List>
-    var stream = response.data!.stream;
+    var stream = response.data.stream;
     var compressed = false;
     var total = 0;
     var contentEncoding = response.headers.value(Headers.contentEncodingHeader);
@@ -138,10 +141,10 @@ class DioForNative with DioMixin implements Dio {
       total = int.parse(response.headers.value(lengthHeader) ?? '-1');
     }
 
-    late StreamSubscription subscription;
-    Future? asyncWrite;
+    StreamSubscription subscription;
+    Future asyncWrite;
     var closed = false;
-    Future _closeAndDelete() async {
+    void _closeAndDelete() async {
       if (!closed) {
         closed = true;
         await asyncWrite;
@@ -192,7 +195,7 @@ class DioForNative with DioMixin implements Dio {
       cancelOnError: true,
     );
     // ignore: unawaited_futures
-    cancelToken?.whenCancel.then((_) async {
+    cancelToken?.whenCancel?.then((_) async {
       await subscription.cancel();
       await _closeAndDelete();
     });
@@ -247,8 +250,8 @@ class DioForNative with DioMixin implements Dio {
   ///  to assure the value of `total` argument of `onProgress` is not -1. for example:
   ///
   ///     await dio.downloadUri(uri, './example/flutter.svg',
-  ///      options: Options(headers: {HttpHeaders.acceptEncodingHeader: '*'}),  // disable gzip
-  ///      onProgress: (received, total) {
+  ///     options: Options(headers: {HttpHeaders.acceptEncodingHeader: '*'}),  // disable gzip
+  ///     onProgress: (received, total) {
   ///       if (total != -1) {
   ///        print((received / total * 100).toStringAsFixed(0) + '%');
   ///       }
@@ -257,12 +260,12 @@ class DioForNative with DioMixin implements Dio {
   Future<Response> downloadUri(
     Uri uri,
     savePath, {
-    ProgressCallback? onReceiveProgress,
-    CancelToken? cancelToken,
+    ProgressCallback onReceiveProgress,
+    CancelToken cancelToken,
     bool deleteOnError = true,
     lengthHeader = Headers.contentLengthHeader,
     data,
-    Options? options,
+    Options options,
   }) {
     return download(
       uri.toString(),

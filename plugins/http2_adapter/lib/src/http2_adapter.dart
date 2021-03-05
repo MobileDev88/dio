@@ -15,68 +15,60 @@ part 'connection_manager_imp.dart';
 class Http2Adapter extends HttpClientAdapter {
   final ConnectionManager _connectionMgr;
 
-  Http2Adapter(ConnectionManager? connectionManager)
-      : _connectionMgr = connectionManager ?? ConnectionManager();
+  Http2Adapter(ConnectionManager connectionManager)
+      : this._connectionMgr = connectionManager ?? ConnectionManager();
 
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
     Stream<List<int>> requestStream,
-    Future? cancelFuture,
+    Future cancelFuture,
   ) async {
-    var redirects = <RedirectRecord>[];
-    return _fetch(
-        options, await requestStream.toList(), cancelFuture, redirects);
+    List<RedirectRecord> redirects = [];
+    return _fetch(options, requestStream, cancelFuture, redirects);
   }
 
   Future<ResponseBody> _fetch(
     RequestOptions options,
-    List<List<int>> requestStream,
-    Future? cancelFuture,
+    Stream<List<int>> requestStream,
+    Future cancelFuture,
     List<RedirectRecord> redirects,
   ) async {
-    final transport = await _connectionMgr.getConnection(options);
-    final uri = options.uri;
+    var transport = await _connectionMgr.getConnection(options);
+    var uri = options.uri;
     var path = uri.path;
-    if (path.isEmpty || !path.startsWith('/')) path = '/' + path;
-    if (uri.query.trim().isNotEmpty) path += ('?' + uri.query);
+    if (uri.query.trim().isNotEmpty) path += ("?" + uri.query);
+    if (!path.startsWith("/")) path = "/" + path;
     var headers = [
       Header.ascii(':method', options.method),
       Header.ascii(':path', path),
       Header.ascii(':scheme', uri.scheme),
       Header.ascii(':authority', uri.host),
     ];
-
     // Add custom headers
     headers.addAll(
       options.headers.keys
-          .map((key) => Header.ascii(key, options.headers[key] ?? ''))
+          .map((key) => Header.ascii(key, options.headers[key]))
           .toList(),
     );
-
     // Creates a new outgoing stream.
-    final stream = transport.makeRequest(headers);
-
-    // ignore: unawaited_futures
-    cancelFuture?.whenComplete(() {
-      Future(() {
+    var stream = transport.makeRequest(
+      headers,
+      endStream: false,
+    );
+    var _ = cancelFuture?.whenComplete(() {
+      Future.delayed(Duration(seconds: 0)).then((e) {
         stream.terminate();
       });
     });
 
-    await Stream.fromIterable(requestStream).listen((data) {
-      stream.outgoingMessages.add(DataStreamMessage(data));
-    }).asFuture();
-
-    await stream.outgoingMessages.close();
-
-    final sc = StreamController<Uint8List>();
-    final responseHeaders = Headers();
-    var completer = Completer();
+    var sc = StreamController<Uint8List>();
+    Headers responseHeaders = Headers();
+    Completer completer = Completer();
     var statusCode;
-    var needRedirect = false;
-    late StreamSubscription subscription;
-    var needResponse = false;
+    bool needRedirect = false;
+    StreamSubscription subscription;
+    bool needResponse = false;
     subscription = stream.incomingMessages.listen(
       (message) async {
         if (message is HeadersStreamMessage) {
@@ -85,30 +77,34 @@ class Http2Adapter extends HttpClientAdapter {
             var value = utf8.decode(header.value);
             responseHeaders.add(name, value);
           }
-
-          var status = responseHeaders.value(':status');
-          if (status != null) {
-            statusCode = int.parse(status);
-            responseHeaders.removeAll(':status');
-            needRedirect = options.followRedirects &&
-                options.maxRedirects > 0 &&
-                const [301, 302, 303, 307, 308].contains(statusCode);
-            needResponse =
-                !needRedirect && options.validateStatus(statusCode) ||
-                    options.receiveDataWhenStatusError;
-            completer.complete();
+          var status = responseHeaders.value(":status");
+          statusCode = int.parse(status);
+          responseHeaders.removeAll(":status");
+          needRedirect = options.followRedirects &&
+              options.maxRedirects > 0 &&
+              [301, 302, 303, 307, 308].contains(statusCode);
+          needResponse = !needRedirect && options.validateStatus(statusCode) ||
+              options.receiveDataWhenStatusError;
+          if (needResponse) {
+            // Write outgoing stream
+            await requestStream
+                ?.listen((data) =>
+                    stream.outgoingMessages.add(DataStreamMessage(data)))
+                ?.asFuture();
+            await stream.outgoingMessages.close();
           }
+          completer.complete();
         } else if (message is DataStreamMessage) {
           if (needResponse) {
             sc.add(Uint8List.fromList(message.bytes));
           } else {
-            // ignore: unawaited_futures
-            subscription.cancel().whenComplete(() => sc.close());
+            var _ = subscription.cancel().whenComplete(() => sc.close());
           }
         }
       },
       onDone: () => sc.close(),
       onError: (e) {
+        print(e);
         // If connection is being forcefully terminated, remove the connection
         if (e is TransportConnectionException) {
           _connectionMgr.removeConnection(transport);
@@ -124,9 +120,8 @@ class Http2Adapter extends HttpClientAdapter {
     await completer.future;
     // Handle redirection
     if (needRedirect) {
-      var url = responseHeaders.value('location');
-      redirects.add(
-          RedirectRecord(statusCode, options.method, Uri.parse(url ?? '')));
+      var url = responseHeaders.value("location");
+      redirects.add(RedirectRecord(statusCode, options.method, Uri.parse(url)));
       return _fetch(
         options.merge(path: url, maxRedirects: --options.maxRedirects),
         requestStream,

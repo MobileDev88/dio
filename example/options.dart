@@ -41,8 +41,9 @@ main() async {
   );
   print(response.data);
 
-  response = await dio.fetch(
-    RequestOptions(baseUrl: "https://baidu.com/"),
+  response = await dio.request(
+    "/",
+    options: RequestOptions(baseUrl: "https://baidu.com"),
   );
   print(response.data);
 }

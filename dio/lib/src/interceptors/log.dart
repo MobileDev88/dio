@@ -53,23 +53,23 @@ class LogInterceptor extends Interceptor {
   @override
   Future onRequest(RequestOptions options) async {
     logPrint('*** Request ***');
-    _printKV('uri', options.uri);
+    printKV('uri', options.uri);
 
     if (request) {
-      _printKV('method', options.method);
-      _printKV('responseType', options.responseType.toString());
-      _printKV('followRedirects', options.followRedirects);
-      _printKV('connectTimeout', options.connectTimeout);
-      _printKV('receiveTimeout', options.receiveTimeout);
-      _printKV('extra', options.extra);
+      printKV('method', options.method);
+      printKV('responseType', options.responseType?.toString());
+      printKV('followRedirects', options.followRedirects);
+      printKV('connectTimeout', options.connectTimeout);
+      printKV('receiveTimeout', options.receiveTimeout);
+      printKV('extra', options.extra);
     }
     if (requestHeader) {
       logPrint('headers:');
-      options.headers.forEach((key, v) => _printKV(' $key', v));
+      options.headers.forEach((key, v) => printKV(' $key', v));
     }
     if (requestBody) {
       logPrint('data:');
-      _printAll(options.data);
+      printAll(options.data);
     }
     logPrint('');
   }
@@ -78,10 +78,10 @@ class LogInterceptor extends Interceptor {
   Future onError(DioError err) async {
     if (error) {
       logPrint('*** DioError ***:');
-      logPrint('uri: ${err.request?.uri}');
+      logPrint('uri: ${err.request.uri}');
       logPrint('$err');
       if (err.response != null) {
-        _printResponse(err.response!);
+        _printResponse(err.response);
       }
       logPrint('');
     }
@@ -94,28 +94,29 @@ class LogInterceptor extends Interceptor {
   }
 
   void _printResponse(Response response) {
-    _printKV('uri', response.request.uri);
+    printKV('uri', response.request?.uri);
     if (responseHeader) {
-      _printKV('statusCode', response.statusCode);
+      printKV('statusCode', response.statusCode);
       if (response.isRedirect == true) {
-        _printKV('redirect', response.realUri);
+        printKV('redirect', response.realUri);
       }
-
-      logPrint('headers:');
-      response.headers.forEach((key, v) => _printKV(' $key', v.join(',')));
+      if (response.headers != null) {
+        logPrint('headers:');
+        response.headers.forEach((key, v) => printKV(' $key', v.join(',')));
+      }
     }
     if (responseBody) {
       logPrint('Response Text:');
-      _printAll(response.toString());
+      printAll(response.toString());
     }
     logPrint('');
   }
 
-  void _printKV(String key, Object? v) {
+  void printKV(String key, Object v) {
     logPrint('$key: $v');
   }
 
-  void _printAll(msg) {
+  void printAll(msg) {
     msg.toString().split('\n').forEach(logPrint);
   }
 }

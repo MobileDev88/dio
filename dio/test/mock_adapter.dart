@@ -6,75 +6,49 @@ import 'package:dio/dio.dart';
 import 'package:dio/adapter.dart';
 
 class MockAdapter extends HttpClientAdapter {
-  static const mockHost = 'mockserver';
-  static const mockBase = 'http://$mockHost';
-  final _adapter = DefaultHttpClientAdapter();
+  static const String mockHost = "mockserver";
+  static const String mockBase = "http://$mockHost";
+  DefaultHttpClientAdapter _adapter = DefaultHttpClientAdapter();
 
   @override
   Future<ResponseBody> fetch(RequestOptions options,
-      Stream<List<int>> requestStream, Future? cancelFuture) async {
-    final uri = options.uri;
+      Stream<List<int>> requestStream, Future cancelFuture) async {
+    Uri uri = options.uri;
     if (uri.host == mockHost) {
       switch (uri.path) {
-        case '/test':
+        case "/test":
           return ResponseBody.fromString(
             jsonEncode({
-              'errCode': 0,
-              'data': {'path': uri.path}
+              "errCode": 0,
+              "data": {"path": uri.path}
             }),
             200,
             headers: {
               Headers.contentTypeHeader: [Headers.jsonContentType],
             },
           );
-        case '/test-auth':
-          {
-            return Future.delayed(Duration(milliseconds: 300), () {
-              if (options.headers['csrfToken'] == null) {
-                return ResponseBody.fromString(
-                  jsonEncode({
-                    'errCode': -1,
-                    'data': {'path': uri.path}
-                  }),
-                  401,
-                  headers: {
-                    Headers.contentTypeHeader: [Headers.jsonContentType],
-                  },
-                );
-              }
-              return ResponseBody.fromString(
-                jsonEncode({
-                  'errCode': 0,
-                  'data': {'path': uri.path}
-                }),
-                200,
-                headers: {
-                  Headers.contentTypeHeader: [Headers.jsonContentType],
-                },
-              );
-            });
-          }
-        case '/download':
+        case "/download":
           return Future.delayed(Duration(milliseconds: 300), () {
             return ResponseBody(
-              File('./README.md').openRead().cast<Uint8List>(),
+              File("./README.md").openRead().cast<Uint8List>(),
               200,
               headers: {
                 Headers.contentLengthHeader: [
-                  File('./README.md').lengthSync().toString()
+                  File("./README.md").lengthSync().toString()
                 ],
               },
             );
           });
+          break;
 
-        case '/token':
+        case "/token":
           {
-            var t = 'ABCDEFGHIJKLMN'.split('')..shuffle();
-            return ResponseBody.fromBytes(
-              utf8.encode(jsonEncode({
-                'errCode': 0,
-                'data': {'token': t.join()}
-              })),
+            var t = "ABCDEFGHIJKLMN".split("")..shuffle();
+            return ResponseBody.fromString(
+              jsonEncode({
+                "errCode": 0,
+                "data": {"token": t.join()}
+              }),
               200,
               headers: {
                 Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -82,7 +56,7 @@ class MockAdapter extends HttpClientAdapter {
             );
           }
         default:
-          return ResponseBody.fromString('', 404);
+          return ResponseBody.fromString("", 404);
       }
     }
     return _adapter.fetch(options, requestStream, cancelFuture);

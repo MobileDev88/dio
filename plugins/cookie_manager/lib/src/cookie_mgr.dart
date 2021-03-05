@@ -14,7 +14,13 @@ class CookieManager extends Interceptor {
   @override
   Future onRequest(RequestOptions options) async {
     var cookies = cookieJar.loadForRequest(options.uri);
-    var cookie = getCookies(cookies);
+    cookies.removeWhere((cookie) {
+      if (cookie.expires != null) {
+        return cookie.expires.isBefore(DateTime.now());
+      }
+      return false;
+    });
+    String cookie = getCookies(cookies);
     if (cookie.isNotEmpty) options.headers[HttpHeaders.cookieHeader] = cookie;
   }
 
@@ -24,17 +30,19 @@ class CookieManager extends Interceptor {
   @override
   Future onError(DioError err) async => _saveCookies(err.response);
 
-  void _saveCookies(Response? response) {
-      var cookies = response?.headers[HttpHeaders.setCookieHeader];
+  _saveCookies(Response response) {
+    if (response != null && response.headers != null) {
+      List<String> cookies = response.headers[HttpHeaders.setCookieHeader];
       if (cookies != null) {
         cookieJar.saveFromResponse(
-          response!.request.uri,
+          response.request.uri,
           cookies.map((str) => Cookie.fromSetCookieValue(str)).toList(),
         );
       }
+    }
   }
 
   static String getCookies(List<Cookie> cookies) {
-    return cookies.map((cookie) => '${cookie.name}=${cookie.value}').join('; ');
+    return cookies.map((cookie) => "${cookie.name}=${cookie.value}").join('; ');
   }
 }
