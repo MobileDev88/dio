@@ -63,11 +63,11 @@ class FormData {
   String _headerForField(String name, String value) {
     var header =
         'content-disposition: form-data; name="${_browserEncode(name)}"';
-    if (!isPlainAscii(value)) {
+    //if (!isPlainAscii(value)) {
       header = '$header\r\n'
-          'content-type: text/plain; charset=utf-8\r\n'
-          'content-transfer-encoding: binary';
-    }
+          'content-type: application/json; charset=utf-8\r\n'
+          'content-transfer-encoding: 8bit';
+    //}
     return '$header\r\n\r\n';
   }
 
